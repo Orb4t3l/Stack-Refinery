@@ -5,7 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ScreenEvent;
@@ -14,6 +14,9 @@ import net.minecraftforge.fml.common.Mod;
 
 @Mod.EventBusSubscriber(modid = StackRefinery.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public class ClientEvents {
+
+    private static final ResourceLocation BUTTON_TEXTURE =
+            new ResourceLocation(StackRefinery.MODID, "textures/gui/consolidate_button.png");
 
     private static int btnX, btnY;
     private static final int BTN_W = 20;
@@ -32,8 +35,11 @@ public class ClientEvents {
         int rows = chestMenu.getRowCount();
         int imageWidth = 176;
         int imageHeight = 114 + rows * 18;
-        btnX = (screen.width - imageWidth) / 2 + imageWidth - 24;
-        btnY = (screen.height - imageHeight) / 2 + 4;
+        int leftPos = (screen.width - imageWidth) / 2;
+        int topPos = (screen.height - imageHeight) / 2;
+
+        btnX = leftPos - BTN_W - 4;
+        btnY = topPos + (imageHeight / 2) - (BTN_H / 2);
     }
 
     @SubscribeEvent
@@ -41,23 +47,17 @@ public class ClientEvents {
         if (!chestOpen) return;
 
         GuiGraphics graphics = event.getGuiGraphics();
-        int mouseX = (int) Minecraft.getInstance().mouseHandler.xpos();
-        int mouseY = (int) Minecraft.getInstance().mouseHandler.ypos();
         double scale = Minecraft.getInstance().getWindow().getGuiScale();
-        int mx = (int) (mouseX / scale);
-        int my = (int) (mouseY / scale);
+        int mx = (int) (Minecraft.getInstance().mouseHandler.xpos() / scale);
+        int my = (int) (Minecraft.getInstance().mouseHandler.ypos() / scale);
 
         boolean hovered = mx >= btnX && mx <= btnX + BTN_W && my >= btnY && my <= btnY + BTN_H;
 
-        graphics.fill(btnX, btnY, btnX + BTN_W, btnY + BTN_H, hovered ? 0xFFAAAAAA : 0xFF888888);
-        graphics.renderOutline(btnX, btnY, BTN_W, BTN_H, 0xFF000000);
-        graphics.drawCenteredString(
-                Minecraft.getInstance().font,
-                Component.literal("C"),
-                btnX + BTN_W / 2,
-                btnY + (BTN_H - 8) / 2,
-                0xFFFFFF
-        );
+        if (hovered) {
+            graphics.fill(btnX - 1, btnY - 1, btnX + BTN_W + 1, btnY + BTN_H + 1, 0xFFFFFFAA);
+        }
+
+        graphics.blit(BUTTON_TEXTURE, btnX, btnY, 0, 0, BTN_W, BTN_H, BTN_W, BTN_H);
     }
 
     @SubscribeEvent

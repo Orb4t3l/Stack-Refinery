@@ -41,13 +41,19 @@ public class ConsolidationHandler {
 
                 BlockPos destPos = stacks.get(0).container.getBlockPos();
 
+                List<ConsolidationQueue.PendingMove> pendingGroup = new ArrayList<>();
+
                 for (int i = 1; i < stacks.size(); i++) {
                     StackEntry src = stacks.get(i);
                     src.container.setItem(src.slot, ItemStack.EMPTY);
                     src.container.setChanged();
 
                     Vec3 spawnPos = Vec3.atCenterOf(src.container.getBlockPos()).add(0, 0.5, 0);
-                    ConsolidationQueue.enqueue(player, spawnPos, destPos, src.stack);
+                    pendingGroup.add(ConsolidationQueue.makePending(player, spawnPos, destPos, src.stack));
+                }
+
+                if (!pendingGroup.isEmpty()) {
+                    ConsolidationQueue.enqueueGroup(player, pendingGroup);
                 }
             }
 
@@ -70,7 +76,7 @@ public class ConsolidationHandler {
     }
 
     private static Map<String, List<StackEntry>> groupItems(List<RandomizableContainerBlockEntity> containers) {
-        Map<String, List<StackEntry>> groups = new HashMap<>();
+        Map<String, List<StackEntry>> groups = new LinkedHashMap<>();
         for (RandomizableContainerBlockEntity container : containers) {
             for (int slot = 0; slot < container.getContainerSize(); slot++) {
                 ItemStack stack = container.getItem(slot);

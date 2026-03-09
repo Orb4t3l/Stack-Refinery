@@ -1,6 +1,5 @@
 package com.orbital.stackrefinery.consolidation;
 
-import com.orbital.stackrefinery.config.RefineryConfig;
 import com.orbital.stackrefinery.tracking.ChestTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -11,40 +10,50 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class ConsolidationHandler {
 
+    private static final Set<UUID> inProgress = Collections.synchronizedSet(new HashSet<>());
+
     public static void consolidate(ServerPlayer player) {
-        List<BlockPos> positions = ChestTracker.getChestsForPlayer(player.getUUID());
+        UUID id = player.getUUID();
 
-        if (positions.isEmpty()) {
-            positions = ChestTracker.scanImmediately(player);
+        if (!inProgress.add(id)) return;
+
+        try {
+            List<BlockPos> positions = ChestTracker.getChestsForPlayer(id);
+            if (positions.isEmpty()) positions = ChestTracker.scanImmediately(player);
+
+            List<RandomizableContainerBlockEntity> containers = resolveContainers(player.serverLevel(), positions);
+            if (containers.isEmpty()) return;
+
+            Map<String, List<StackEntry>> groups = groupItems(containers);
+
+            for (List<StackEntry> stacks : groups.values()) {
+                if (stacks.size() <= 1) continue;
+
+                int maxStack = stacks.get(0).stack.getMaxStackSize();
+                int total = stacks.stream().mapToInt(s -> s.stack.getCount()).sum();
+                int totalCapacity = stacks.size() * maxStack;
+
+                if (total > totalCapacity) continue;
+
+                stacks.sort((a, b) -> Integer.compare(b.stack.getCount(), a.stack.getCount()));
+
+                clearStacks(stacks);
+                redistributeItems(stacks, total, maxStack);
+            }
+
+            for (RandomizableContainerBlockEntity container : containers) {
+                container.setChanged();
+            }
+
+            ChestTracker.invalidatePlayer(id);
+
+        } finally {
+            inProgress.remove(id);
         }
-
-        List<RandomizableContainerBlockEntity> containers = resolveContainers(player.serverLevel(), positions);
-        if (containers.isEmpty()) return;
-
-        Map<String, List<StackEntry>> itemGroups = groupItems(containers);
-
-        for (List<StackEntry> stacks : itemGroups.values()) {
-            if (stacks.size() <= 1) continue;
-
-            int maxStack = stacks.get(0).stack.getMaxStackSize();
-            int total = stacks.stream().mapToInt(s -> s.stack.getCount()).sum();
-
-            clearStacks(stacks);
-            redistributeItems(stacks, total, maxStack);
-        }
-
-        for (RandomizableContainerBlockEntity container : containers) {
-            container.setChanged();
-        }
-
-        ChestTracker.invalidatePlayer(player.getUUID());
     }
 
     private static List<RandomizableContainerBlockEntity> resolveContainers(ServerLevel level, List<BlockPos> positions) {
@@ -83,14 +92,11 @@ public class ConsolidationHandler {
 
     private static void redistributeItems(List<StackEntry> stacks, int total, int maxStack) {
         int remaining = total;
-        int entryIndex = 0;
-
-        while (remaining > 0 && entryIndex < stacks.size()) {
-            StackEntry entry = stacks.get(entryIndex);
+        for (StackEntry entry : stacks) {
+            if (remaining <= 0) break;
             int give = Math.min(remaining, maxStack);
             entry.container.setItem(entry.slot, entry.stack.copyWithCount(give));
             remaining -= give;
-            entryIndex++;
         }
     }
 

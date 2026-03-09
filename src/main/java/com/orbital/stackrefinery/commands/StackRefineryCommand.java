@@ -25,7 +25,7 @@ public class StackRefineryCommand {
                                                     int value = IntegerArgumentType.getInteger(ctx, "value");
                                                     RefineryConfig.setRadius(value);
                                                     ctx.getSource().sendSuccess(
-                                                            () -> Component.literal("StackRefinery: consolidation radius set to " + value),
+                                                            () -> Component.literal("Stack Refinery consolidation radius set to " + value),
                                                             true
                                                     );
                                                     return 1;

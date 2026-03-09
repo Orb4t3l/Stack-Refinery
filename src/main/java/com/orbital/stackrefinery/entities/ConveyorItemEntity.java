@@ -18,7 +18,7 @@ import net.minecraft.world.phys.Vec3;
 public class ConveyorItemEntity extends Entity {
 
     private static final double SPEED = 0.08;
-    private static final double ARRIVAL_THRESHOLD = 0.08;
+    private static final double ARRIVAL_THRESHOLD = 0.5;
 
     private static final EntityDataAccessor<ItemStack> DATA_ITEM =
             SynchedEntityData.defineId(ConveyorItemEntity.class, EntityDataSerializers.ITEM_STACK);

@@ -1,6 +1,5 @@
 package com.orbital.stackrefinery.consolidation;
 
-import com.orbital.stackrefinery.entities.ConveyorItemEntity;
 import com.orbital.stackrefinery.tracking.ChestTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -33,6 +32,8 @@ public class ConsolidationHandler {
 
             Map<String, List<StackEntry>> groups = groupItems(containers);
 
+            ConsolidationQueue.clearPlayer(id);
+
             for (List<StackEntry> stacks : groups.values()) {
                 if (stacks.size() <= 1) continue;
 
@@ -42,14 +43,11 @@ public class ConsolidationHandler {
 
                 for (int i = 1; i < stacks.size(); i++) {
                     StackEntry src = stacks.get(i);
-                    ItemStack toSend = src.stack.copy();
-
                     src.container.setItem(src.slot, ItemStack.EMPTY);
                     src.container.setChanged();
 
                     Vec3 spawnPos = Vec3.atCenterOf(src.container.getBlockPos()).add(0, 0.5, 0);
-                    ConveyorItemEntity entity = new ConveyorItemEntity(level, spawnPos, destPos, toSend);
-                    level.addFreshEntity(entity);
+                    ConsolidationQueue.enqueue(player, spawnPos, destPos, src.stack);
                 }
             }
 

@@ -18,6 +18,6 @@ public class ModEntities {
                     .<ConveyorItemEntity>of(ConveyorItemEntity::new, MobCategory.MISC)
                     .sized(0.25f, 0.25f)
                     .clientTrackingRange(32)
-                    .updateInterval(4)
+                    .updateInterval(20)
                     .build("conveyor_item"));
 }

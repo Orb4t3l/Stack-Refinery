@@ -6,7 +6,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -18,20 +17,13 @@ import net.minecraft.world.phys.Vec3;
 
 public class ConveyorItemEntity extends Entity {
 
-    private static final float SPEED_BLOCKS_PER_TICK = 0.15f;
+    private static final double SPEED = 0.08;
+    private static final double ARRIVAL_THRESHOLD = 0.08;
 
     private static final EntityDataAccessor<ItemStack> DATA_ITEM =
             SynchedEntityData.defineId(ConveyorItemEntity.class, EntityDataSerializers.ITEM_STACK);
-    private static final EntityDataAccessor<Integer> DATA_TOTAL_TICKS =
-            SynchedEntityData.defineId(ConveyorItemEntity.class, EntityDataSerializers.INT);
-    private static final EntityDataAccessor<Float> DATA_START_X =
-            SynchedEntityData.defineId(ConveyorItemEntity.class, EntityDataSerializers.FLOAT);
-    private static final EntityDataAccessor<Float> DATA_START_Y =
-            SynchedEntityData.defineId(ConveyorItemEntity.class, EntityDataSerializers.FLOAT);
-    private static final EntityDataAccessor<Float> DATA_START_Z =
-            SynchedEntityData.defineId(ConveyorItemEntity.class, EntityDataSerializers.FLOAT);
-
-    private BlockPos targetPos = BlockPos.ZERO;
+    private static final EntityDataAccessor<BlockPos> DATA_TARGET =
+            SynchedEntityData.defineId(ConveyorItemEntity.class, EntityDataSerializers.BLOCK_POS);
 
     public ConveyorItemEntity(EntityType<?> type, Level level) {
         super(type, level);
@@ -41,46 +33,44 @@ public class ConveyorItemEntity extends Entity {
 
     public ConveyorItemEntity(Level level, Vec3 spawnPos, BlockPos target, ItemStack stack) {
         this(ModEntities.CONVEYOR_ITEM.get(), level);
-
         setPos(spawnPos.x, spawnPos.y, spawnPos.z);
-        this.targetPos = target;
-
         entityData.set(DATA_ITEM, stack.copy());
-        entityData.set(DATA_START_X, (float) spawnPos.x);
-        entityData.set(DATA_START_Y, (float) spawnPos.y);
-        entityData.set(DATA_START_Z, (float) spawnPos.z);
-
-        Vec3 dest = Vec3.atCenterOf(target).add(0, 0.25, 0);
-        float dist = (float) spawnPos.distanceTo(dest);
-        int ticks = Math.max(1, (int) (dist / SPEED_BLOCKS_PER_TICK));
-        entityData.set(DATA_TOTAL_TICKS, ticks);
+        entityData.set(DATA_TARGET, target);
     }
 
     @Override
     protected void defineSynchedData() {
         entityData.define(DATA_ITEM, ItemStack.EMPTY);
-        entityData.define(DATA_TOTAL_TICKS, 20);
-        entityData.define(DATA_START_X, 0f);
-        entityData.define(DATA_START_Y, 0f);
-        entityData.define(DATA_START_Z, 0f);
+        entityData.define(DATA_TARGET, BlockPos.ZERO);
     }
 
     @Override
     public void tick() {
         super.tick();
-        if (level().isClientSide()) return;
 
-        if (tickCount >= entityData.get(DATA_TOTAL_TICKS)) {
-            deliverItem();
-            discard();
+        BlockPos target = entityData.get(DATA_TARGET);
+        Vec3 dest = Vec3.atCenterOf(target).add(0, 0.25, 0);
+        Vec3 current = position();
+        Vec3 diff = dest.subtract(current);
+        double dist = diff.length();
+
+        if (dist <= ARRIVAL_THRESHOLD) {
+            if (!level().isClientSide()) {
+                deliverItem(target);
+                discard();
+            }
+            return;
         }
+
+        Vec3 step = diff.normalize().scale(Math.min(SPEED, dist));
+        setPos(current.x + step.x, current.y + step.y, current.z + step.z);
     }
 
-    private void deliverItem() {
+    private void deliverItem(BlockPos target) {
         ItemStack stack = entityData.get(DATA_ITEM).copy();
         if (stack.isEmpty()) return;
 
-        if (!(level().getBlockEntity(targetPos) instanceof RandomizableContainerBlockEntity container)) {
+        if (!(level().getBlockEntity(target) instanceof RandomizableContainerBlockEntity container)) {
             dropAsItem(stack);
             return;
         }
@@ -113,27 +103,6 @@ public class ConveyorItemEntity extends Entity {
         level().addFreshEntity(new ItemEntity(level(), getX(), getY(), getZ(), stack));
     }
 
-    public float getLerpedX(float partialTick) {
-        float t = getProgress(partialTick);
-        return Mth.lerp(t, entityData.get(DATA_START_X), (float) Vec3.atCenterOf(targetPos).x);
-    }
-
-    public float getLerpedY(float partialTick) {
-        float t = getProgress(partialTick);
-        return Mth.lerp(t, entityData.get(DATA_START_Y), (float) Vec3.atCenterOf(targetPos).add(0, 0.25, 0).y);
-    }
-
-    public float getLerpedZ(float partialTick) {
-        float t = getProgress(partialTick);
-        return Mth.lerp(t, entityData.get(DATA_START_Z), (float) Vec3.atCenterOf(targetPos).z);
-    }
-
-    private float getProgress(float partialTick) {
-        int total = entityData.get(DATA_TOTAL_TICKS);
-        if (total <= 0) return 1f;
-        return Mth.clamp((tickCount + partialTick) / (float) total, 0f, 1f);
-    }
-
     @Override public void playerTouch(Player player) {}
     @Override public boolean isPickable() { return false; }
     @Override public boolean isPushedByFluid() { return false; }
@@ -142,23 +111,17 @@ public class ConveyorItemEntity extends Entity {
     @Override
     protected void addAdditionalSaveData(CompoundTag tag) {
         tag.put("Item", entityData.get(DATA_ITEM).save(new CompoundTag()));
-        tag.putInt("TargetX", targetPos.getX());
-        tag.putInt("TargetY", targetPos.getY());
-        tag.putInt("TargetZ", targetPos.getZ());
-        tag.putInt("TotalTicks", entityData.get(DATA_TOTAL_TICKS));
-        tag.putFloat("StartX", entityData.get(DATA_START_X));
-        tag.putFloat("StartY", entityData.get(DATA_START_Y));
-        tag.putFloat("StartZ", entityData.get(DATA_START_Z));
+        BlockPos t = entityData.get(DATA_TARGET);
+        tag.putInt("TargetX", t.getX());
+        tag.putInt("TargetY", t.getY());
+        tag.putInt("TargetZ", t.getZ());
     }
 
     @Override
     protected void readAdditionalSaveData(CompoundTag tag) {
         entityData.set(DATA_ITEM, ItemStack.of(tag.getCompound("Item")));
-        targetPos = new BlockPos(tag.getInt("TargetX"), tag.getInt("TargetY"), tag.getInt("TargetZ"));
-        entityData.set(DATA_TOTAL_TICKS, tag.getInt("TotalTicks"));
-        entityData.set(DATA_START_X, tag.getFloat("StartX"));
-        entityData.set(DATA_START_Y, tag.getFloat("StartY"));
-        entityData.set(DATA_START_Z, tag.getFloat("StartZ"));
+        entityData.set(DATA_TARGET, new BlockPos(
+                tag.getInt("TargetX"), tag.getInt("TargetY"), tag.getInt("TargetZ")));
     }
 
     public ItemStack getItemStack() { return entityData.get(DATA_ITEM); }

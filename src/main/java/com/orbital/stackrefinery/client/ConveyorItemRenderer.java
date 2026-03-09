@@ -3,14 +3,12 @@ package com.orbital.stackrefinery.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import com.orbital.stackrefinery.entities.ConveyorItemEntity;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.ItemRenderer;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 
@@ -30,21 +28,7 @@ public class ConveyorItemRenderer extends EntityRenderer<ConveyorItemEntity> {
         ItemStack stack = entity.getItemStack();
         if (stack.isEmpty()) return;
 
-        double entityRenderX = Mth.lerp(partialTick, entity.xOld, entity.getX());
-        double entityRenderY = Mth.lerp(partialTick, entity.yOld, entity.getY());
-        double entityRenderZ = Mth.lerp(partialTick, entity.zOld, entity.getZ());
-
-        double visualX = entity.getLerpedX(partialTick);
-        double visualY = entity.getLerpedY(partialTick);
-        double visualZ = entity.getLerpedZ(partialTick);
-
         poseStack.pushPose();
-
-        poseStack.translate(
-                visualX - entityRenderX,
-                visualY - entityRenderY,
-                visualZ - entityRenderZ
-        );
 
         float spin = (entity.tickCount + partialTick) * 3.0f;
         poseStack.mulPose(Axis.YP.rotationDegrees(spin));

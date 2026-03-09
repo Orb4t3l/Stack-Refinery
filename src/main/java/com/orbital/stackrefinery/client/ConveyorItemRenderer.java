@@ -29,14 +29,11 @@ public class ConveyorItemRenderer extends EntityRenderer<ConveyorItemEntity> {
         if (stack.isEmpty()) return;
 
         poseStack.pushPose();
+        poseStack.translate(0.0, 0.2, 0.0);
 
-        float bob = (float) Math.sin((entity.tickCount + partialTick) * 0.15f) * 0.06f;
-        poseStack.translate(0.0, 0.15 + bob, 0.0);
-
-        float spin = (entity.tickCount + partialTick) * 5.0f;
+        float spin = (entity.tickCount + partialTick) * 3.0f;
         poseStack.mulPose(Axis.YP.rotationDegrees(spin));
-
-        poseStack.scale(0.5f, 0.5f, 0.5f);
+        poseStack.scale(0.4f, 0.4f, 0.4f);
 
         itemRenderer.renderStatic(
                 stack,
@@ -50,7 +47,6 @@ public class ConveyorItemRenderer extends EntityRenderer<ConveyorItemEntity> {
         );
 
         poseStack.popPose();
-
         super.render(entity, entityYaw, partialTick, poseStack, bufferSource, packedLight);
     }
 

@@ -18,6 +18,9 @@ import net.minecraft.world.phys.Vec3;
 
 public class ConveyorItemEntity extends Entity {
 
+    private static final double SPEED = 0.1;
+    private static final double ARRIVAL_THRESHOLD = 0.15;
+
     private static final EntityDataAccessor<ItemStack> DATA_ITEM =
             SynchedEntityData.defineId(ConveyorItemEntity.class, EntityDataSerializers.ITEM_STACK);
 
@@ -26,6 +29,7 @@ public class ConveyorItemEntity extends Entity {
     public ConveyorItemEntity(EntityType<?> type, Level level) {
         super(type, level);
         this.noPhysics = true;
+        this.noCulling = true;
     }
 
     public ConveyorItemEntity(Level level, Vec3 spawnPos, BlockPos target, ItemStack stack) {
@@ -44,12 +48,11 @@ public class ConveyorItemEntity extends Entity {
     public void tick() {
         super.tick();
 
-        Vec3 current = position();
-        Vec3 dest = Vec3.atCenterOf(targetPos).add(0, 0.5, 0);
-        Vec3 diff = dest.subtract(current);
+        Vec3 dest = Vec3.atCenterOf(targetPos).add(0, 0.25, 0);
+        Vec3 diff = dest.subtract(position());
         double dist = diff.length();
 
-        if (dist < 0.3) {
+        if (dist < ARRIVAL_THRESHOLD) {
             if (!level().isClientSide()) {
                 deliverItem();
                 discard();
@@ -57,7 +60,7 @@ public class ConveyorItemEntity extends Entity {
             return;
         }
 
-        double speed = Math.min(0.5, dist);
+        double speed = Math.min(SPEED, dist);
         move(MoverType.SELF, diff.normalize().scale(speed));
     }
 
@@ -85,35 +88,24 @@ public class ConveyorItemEntity extends Entity {
 
         for (int i = 0; i < container.getContainerSize() && !stack.isEmpty(); i++) {
             if (container.getItem(i).isEmpty()) {
-                int give = Math.min(stack.getCount(), stack.getMaxStackSize());
-                container.setItem(i, stack.copyWithCount(give));
-                stack.shrink(give);
+                container.setItem(i, stack.copyWithCount(Math.min(stack.getCount(), stack.getMaxStackSize())));
+                stack.shrink(stack.getCount());
             }
         }
 
         container.setChanged();
 
-        if (!stack.isEmpty()) {
-            dropAsItem(stack);
-        }
+        if (!stack.isEmpty()) dropAsItem(stack);
     }
 
     private void dropAsItem(ItemStack stack) {
-        ItemEntity ie = new ItemEntity(level(), getX(), getY(), getZ(), stack);
-        level().addFreshEntity(ie);
+        level().addFreshEntity(new ItemEntity(level(), getX(), getY(), getZ(), stack));
     }
 
-    @Override
-    public void playerTouch(Player player) {}
-
-    @Override
-    public boolean isPickable() { return false; }
-
-    @Override
-    public boolean isPushedByFluid() { return false; }
-
-    @Override
-    public boolean shouldRenderAtSqrDistance(double dist) { return dist < 1024; }
+    @Override public void playerTouch(Player player) {}
+    @Override public boolean isPickable() { return false; }
+    @Override public boolean isPushedByFluid() { return false; }
+    @Override public boolean shouldRenderAtSqrDistance(double d) { return d < 1024; }
 
     @Override
     protected void addAdditionalSaveData(CompoundTag tag) {
@@ -129,7 +121,6 @@ public class ConveyorItemEntity extends Entity {
         targetPos = new BlockPos(tag.getInt("TargetX"), tag.getInt("TargetY"), tag.getInt("TargetZ"));
     }
 
-    public ItemStack getItemStack() {
-        return entityData.get(DATA_ITEM);
-    }
+    public ItemStack getItemStack() { return entityData.get(DATA_ITEM); }
+    public BlockPos getTargetPos() { return targetPos; }
 }

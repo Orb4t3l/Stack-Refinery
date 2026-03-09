@@ -1,5 +1,6 @@
 package com.orbital.stackrefinery.consolidation;
 
+import com.orbital.stackrefinery.entities.ConveyorItemEntity;
 import com.orbital.stackrefinery.tracking.ChestTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -9,6 +10,7 @@ import net.minecraft.world.level.block.entity.BarrelBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 
@@ -25,7 +27,8 @@ public class ConsolidationHandler {
             if (positions.isEmpty()) positions = ChestTracker.scanImmediately(player);
             if (positions.isEmpty()) return;
 
-            List<RandomizableContainerBlockEntity> containers = resolveContainers(player.serverLevel(), positions);
+            ServerLevel level = player.serverLevel();
+            List<RandomizableContainerBlockEntity> containers = resolveContainers(level, positions);
             if (containers.isEmpty()) return;
 
             Map<String, List<StackEntry>> groups = groupItems(containers);
@@ -33,17 +36,21 @@ public class ConsolidationHandler {
             for (List<StackEntry> stacks : groups.values()) {
                 if (stacks.size() <= 1) continue;
 
-                int maxStack = stacks.get(0).stack.getMaxStackSize();
-                int total = stacks.stream().mapToInt(s -> s.stack.getCount()).sum();
-
                 stacks.sort((a, b) -> Integer.compare(b.stack.getCount(), a.stack.getCount()));
 
-                clearStacks(stacks);
-                redistributeItems(stacks, total, maxStack);
-            }
+                BlockPos destPos = stacks.get(0).container.getBlockPos();
 
-            for (RandomizableContainerBlockEntity c : containers) {
-                c.setChanged();
+                for (int i = 1; i < stacks.size(); i++) {
+                    StackEntry src = stacks.get(i);
+                    ItemStack toSend = src.stack.copy();
+
+                    src.container.setItem(src.slot, ItemStack.EMPTY);
+                    src.container.setChanged();
+
+                    Vec3 spawnPos = Vec3.atCenterOf(src.container.getBlockPos()).add(0, 0.5, 0);
+                    ConveyorItemEntity entity = new ConveyorItemEntity(level, spawnPos, destPos, toSend);
+                    level.addFreshEntity(entity);
+                }
             }
 
             ChestTracker.invalidatePlayer(id);
@@ -75,22 +82,6 @@ public class ConsolidationHandler {
             }
         }
         return groups;
-    }
-
-    private static void clearStacks(List<StackEntry> stacks) {
-        for (StackEntry e : stacks) {
-            e.container.setItem(e.slot, ItemStack.EMPTY);
-        }
-    }
-
-    private static void redistributeItems(List<StackEntry> stacks, int total, int maxStack) {
-        int remaining = total;
-        for (StackEntry e : stacks) {
-            if (remaining <= 0) break;
-            int give = Math.min(remaining, maxStack);
-            e.container.setItem(e.slot, e.stack.copyWithCount(give));
-            remaining -= give;
-        }
     }
 
     private static String itemKey(ItemStack stack) {

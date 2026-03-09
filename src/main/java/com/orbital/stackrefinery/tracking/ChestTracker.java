@@ -5,9 +5,9 @@ import com.orbital.stackrefinery.config.RefineryConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.entity.BarrelBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
-import net.minecraft.world.level.block.entity.BarrelBlockEntity;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -36,12 +36,18 @@ public class ChestTracker {
 
         for (ServerLevel level : event.getServer().getAllLevels()) {
             for (ServerPlayer player : level.players()) {
-                playerChestMap.put(player.getUUID(), scanNearbyChests(level, player));
+                playerChestMap.put(player.getUUID(), doScan(level, player));
             }
         }
     }
 
-    private static List<BlockPos> scanNearbyChests(ServerLevel level, ServerPlayer player) {
+    public static List<BlockPos> scanImmediately(ServerPlayer player) {
+        List<BlockPos> result = doScan(player.serverLevel(), player);
+        playerChestMap.put(player.getUUID(), result);
+        return result;
+    }
+
+    private static List<BlockPos> doScan(ServerLevel level, ServerPlayer player) {
         int radius = RefineryConfig.getRadius();
         BlockPos origin = player.blockPosition();
         List<BlockPos> found = new ArrayList<>();

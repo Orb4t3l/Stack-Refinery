@@ -1,16 +1,21 @@
 package com.orbital.stackrefinery.events;
 
 import com.orbital.stackrefinery.StackRefinery;
+import com.orbital.stackrefinery.network.ConsolidatePacket;
+import com.orbital.stackrefinery.network.ModNetwork;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.network.PacketDistributor;
 
 @Mod.EventBusSubscriber(modid = StackRefinery.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public class ClientEvents {
@@ -69,7 +74,14 @@ public class ClientEvents {
         int my = (int) event.getMouseY();
 
         if (mx >= btnX && mx <= btnX + BTN_W && my >= btnY && my <= btnY + BTN_H) {
-            // consolidation logic goes here
+            Minecraft mc = Minecraft.getInstance();
+            mc.level.playLocalSound(
+                    mc.player.blockPosition(),
+                    SoundEvents.UI_BUTTON_CLICK.get(),
+                    SoundSource.MASTER,
+                    1.0f, 1.0f, false
+            );
+            ModNetwork.CHANNEL.send(PacketDistributor.SERVER.noArg(), new ConsolidatePacket());
             event.setCanceled(true);
         }
     }

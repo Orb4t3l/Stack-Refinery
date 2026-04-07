@@ -25,18 +25,22 @@ public class ConsolidationQueue {
     private static final Map<UUID, Queue<PendingMove>> activeGroup = new HashMap<>();
     private static final Map<UUID, Integer> tickCounter = new HashMap<>();
     private static final Map<UUID, Integer> ticksNeeded = new HashMap<>();
-    private static final Map<UUID, Boolean> waitingBetweenTypes = new HashMap<>();
+
+    public static boolean isBusy(UUID id) {
+        Queue<List<PendingMove>> tq = typeQueue.get(id);
+        Queue<PendingMove> ag = activeGroup.get(id);
+        return (tq != null && !tq.isEmpty()) || (ag != null && !ag.isEmpty());
+    }
+
+    public static PendingMove makePending(ServerPlayer player, Vec3 from, BlockPos to, ItemStack stack) {
+        return new PendingMove(player.serverLevel(), from, to, stack);
+    }
 
     public static void enqueueGroup(ServerPlayer player, List<PendingMove> group) {
         UUID id = player.getUUID();
         typeQueue.computeIfAbsent(id, k -> new LinkedList<>()).add(group);
         tickCounter.putIfAbsent(id, TICKS_BETWEEN_TYPES);
         ticksNeeded.putIfAbsent(id, TICKS_BETWEEN_TYPES);
-        waitingBetweenTypes.putIfAbsent(id, false);
-    }
-
-    public static PendingMove makePending(ServerPlayer player, Vec3 from, BlockPos to, ItemStack stack) {
-        return new PendingMove(player.serverLevel(), from, to, stack);
     }
 
     @SubscribeEvent
@@ -65,7 +69,6 @@ public class ConsolidationQueue {
                     activeGroup.remove(id);
                     tickCounter.remove(id);
                     ticksNeeded.remove(id);
-                    waitingBetweenTypes.remove(id);
                     continue;
                 }
                 current = new LinkedList<>(nextGroup);
@@ -79,8 +82,7 @@ public class ConsolidationQueue {
             ConveyorItemEntity entity = new ConveyorItemEntity(move.level(), move.from(), move.to(), move.stack());
             move.level().addFreshEntity(entity);
 
-            int stackSize = move.stack().getCount();
-            int delay = Math.max(1, (stackSize / 32) * TICKS_PER_32_ITEMS);
+            int delay = Math.max(1, (move.stack().getCount() / 32) * TICKS_PER_32_ITEMS);
             ticksNeeded.put(id, delay);
         }
     }
@@ -90,6 +92,5 @@ public class ConsolidationQueue {
         activeGroup.remove(id);
         tickCounter.remove(id);
         ticksNeeded.remove(id);
-        waitingBetweenTypes.remove(id);
     }
 }

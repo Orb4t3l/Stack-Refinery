@@ -15,53 +15,61 @@ import java.util.*;
 
 public class ConsolidationHandler {
 
-    private static final Set<UUID> inProgress = Collections.synchronizedSet(new HashSet<>());
-
     public static void consolidate(ServerPlayer player) {
         UUID id = player.getUUID();
-        if (!inProgress.add(id)) return;
 
-        try {
-            List<BlockPos> positions = ChestTracker.getChestsForPlayer(id);
-            if (positions.isEmpty()) positions = ChestTracker.scanImmediately(player);
-            if (positions.isEmpty()) return;
+        if (ConsolidationQueue.isBusy(id)) return;
 
-            ServerLevel level = player.serverLevel();
-            List<RandomizableContainerBlockEntity> containers = resolveContainers(level, positions);
-            if (containers.isEmpty()) return;
+        List<BlockPos> positions = ChestTracker.getChestsForPlayer(id);
+        if (positions.isEmpty()) positions = ChestTracker.scanImmediately(player);
+        if (positions.isEmpty()) return;
 
-            Map<String, List<StackEntry>> groups = groupItems(containers);
+        ServerLevel level = player.serverLevel();
+        List<RandomizableContainerBlockEntity> containers = resolveContainers(level, positions);
+        if (containers.isEmpty()) return;
 
-            ConsolidationQueue.clearPlayer(id);
+        Map<String, List<StackEntry>> groups = groupItems(containers);
 
-            for (List<StackEntry> stacks : groups.values()) {
-                if (stacks.size() <= 1) continue;
+        for (List<StackEntry> stacks : groups.values()) {
+            if (stacks.size() <= 1) continue;
 
-                stacks.sort((a, b) -> Integer.compare(b.stack.getCount(), a.stack.getCount()));
+            stacks.sort((a, b) -> Integer.compare(b.stack.getCount(), a.stack.getCount()));
 
-                BlockPos destPos = stacks.get(0).container.getBlockPos();
+            int maxStack = stacks.get(0).stack.getMaxStackSize();
+            int total = stacks.stream().mapToInt(s -> s.stack.getCount()).sum();
+            int fullStacks = total / maxStack;
+            int remainder = total % maxStack;
 
-                List<ConsolidationQueue.PendingMove> pendingGroup = new ArrayList<>();
-
-                for (int i = 1; i < stacks.size(); i++) {
-                    StackEntry src = stacks.get(i);
-                    src.container.setItem(src.slot, ItemStack.EMPTY);
-                    src.container.setChanged();
-
-                    Vec3 spawnPos = Vec3.atCenterOf(src.container.getBlockPos()).add(0, 0.5, 0);
-                    pendingGroup.add(ConsolidationQueue.makePending(player, spawnPos, destPos, src.stack));
-                }
-
-                if (!pendingGroup.isEmpty()) {
-                    ConsolidationQueue.enqueueGroup(player, pendingGroup);
+            boolean alreadyConsolidated = true;
+            for (int i = 0; i < stacks.size(); i++) {
+                int expected = (i < fullStacks) ? maxStack : (i == fullStacks && remainder > 0 ? remainder : 0);
+                if (stacks.get(i).stack.getCount() != expected) {
+                    alreadyConsolidated = false;
+                    break;
                 }
             }
+            if (alreadyConsolidated) continue;
 
-            ChestTracker.invalidatePlayer(id);
+            BlockPos destPos = stacks.get(0).container.getBlockPos();
+            List<ConsolidationQueue.PendingMove> pendingGroup = new ArrayList<>();
 
-        } finally {
-            inProgress.remove(id);
+            for (int i = 1; i < stacks.size(); i++) {
+                StackEntry src = stacks.get(i);
+                if (src.stack.getCount() == 0) continue;
+
+                src.container.setItem(src.slot, ItemStack.EMPTY);
+                src.container.setChanged();
+
+                Vec3 spawnPos = Vec3.atCenterOf(src.container.getBlockPos()).add(0, 0.5, 0);
+                pendingGroup.add(ConsolidationQueue.makePending(player, spawnPos, destPos, src.stack));
+            }
+
+            if (!pendingGroup.isEmpty()) {
+                ConsolidationQueue.enqueueGroup(player, pendingGroup);
+            }
         }
+
+        ChestTracker.invalidatePlayer(id);
     }
 
     private static List<RandomizableContainerBlockEntity> resolveContainers(ServerLevel level, List<BlockPos> positions) {

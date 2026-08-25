@@ -7,6 +7,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -44,7 +45,7 @@ public class ClientEvents {
         int topPos = (screen.height - imageHeight) / 2;
 
         btnX = leftPos - BTN_W - 4;
-        btnY = topPos + (imageHeight / 2) - (BTN_H / 2);
+        btnY = topPos + (imageHeight / 2) - (BTN_H / 2) - 30;
     }
 
     @SubscribeEvent
@@ -60,6 +61,7 @@ public class ClientEvents {
 
         if (hovered) {
             graphics.fill(btnX - 1, btnY - 1, btnX + BTN_W + 1, btnY + BTN_H + 1, 0xFFFFFFAA);
+            graphics.renderTooltip(Minecraft.getInstance().font, Component.translatable("gui.stackrefinery.consolidate.tooltip"), mx, my);
         }
 
         graphics.blit(BUTTON_TEXTURE, btnX, btnY, 0, 0, BTN_W, BTN_H, BTN_W, BTN_H);
